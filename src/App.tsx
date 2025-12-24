@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import BookList from "./components/BookList";
-import type { Book } from "./types";
+import type { Book, PaginationData } from "./types";
 import BookForm from "./components/BookForm";
 
 function App() {
@@ -10,7 +10,9 @@ function App() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [paginationLinks, setPaginationLinks] = useState<any>(null);
+  const [paginationLinks, setPaginationLinks] = useState<PaginationData | null>(
+    null
+  );
 
   // FILTRO: Calcolato in modo sicuro
   const filteredBooks = Array.isArray(books)
@@ -26,25 +28,29 @@ function App() {
   // 1. DEFINISCI la funzione qui (fuori dallo useEffect)
   const fetchBooks = async (url = "http://localhost:8000/api/books") => {
     setIsLoading(true);
-    setError(null);
     try {
       const response = await fetch(url);
-      if (!response.ok) throw new Error("Errore nel caricamento");
-
       const responseData = await response.json();
 
-      // Gestione flessibile della risposta (paginata o array semplice)
+      // Se la risposta è paginata, i libri sono in .data
       const booksArray = Array.isArray(responseData)
         ? responseData
         : responseData.data;
       setBooks(booksArray || []);
 
-      // Salva i dati di paginazione se presenti
-      if (responseData.links || responseData.current_page) {
-        setPaginationLinks(responseData);
+      // Se la risposta contiene i dati di paginazione, li salviamo
+      if (responseData.current_page) {
+        setPaginationLinks({
+          current_page: responseData.current_page,
+          last_page: responseData.last_page,
+          prev_page_url: responseData.prev_page_url,
+          next_page_url: responseData.next_page_url,
+          total: responseData.total,
+          links: responseData.links,
+        });
       }
     } catch (err) {
-      if (err instanceof Error) setError(err.message);
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
@@ -203,7 +209,11 @@ function App() {
           }}>
           <button
             disabled={!paginationLinks.prev_page_url}
-            onClick={() => fetchBooks(paginationLinks.prev_page_url)}>
+            // Se l'url esiste lo usiamo, altrimenti non facciamo nulla
+            onClick={() =>
+              paginationLinks.prev_page_url &&
+              fetchBooks(paginationLinks.prev_page_url)
+            }>
             ⬅️ Precedente
           </button>
 
@@ -213,7 +223,10 @@ function App() {
 
           <button
             disabled={!paginationLinks.next_page_url}
-            onClick={() => fetchBooks(paginationLinks.next_page_url)}>
+            onClick={() =>
+              paginationLinks.next_page_url &&
+              fetchBooks(paginationLinks.next_page_url)
+            }>
             Successiva ➡️
           </button>
         </div>
