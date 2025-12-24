@@ -14,82 +14,105 @@ const BookForm: React.FC<BookFormProps> = ({
   onCancel,
 }) => {
   // Stati locali per tutti i campi dell'interfaccia Book
-  const [titolo, setTitolo] = useState(initialData?.titolo || "");
-  const [autore, setAutore] = useState(initialData?.autore || "");
+  // Lo stato viene impostato SOLO alla nascita del componente
+  const [titolo, setTitolo] = useState(initialData?.titolo ?? "");
+  const [autore, setAutore] = useState(initialData?.autore ?? "");
   const [anno, setAnno] = useState(
-    initialData?.anno || new Date().getFullYear()
+    initialData?.anno ?? new Date().getFullYear()
   );
-  const [genere, setGenere] = useState(initialData?.genere || "");
+  const [genere, setGenere] = useState(initialData?.genere ?? "");
   const [descrizione, setDescrizione] = useState(
-    initialData?.descrizione || ""
+    initialData?.descrizione ?? ""
   );
+
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
     onSave({
       ...(initialData?.id && { id: initialData.id }),
       titolo,
       autore,
-      anno: Number(anno), // Assicuriamoci che sia un numero
+      anno,
       genere,
       descrizione,
     });
   };
 
   return (
-    <form onSubmit={handleSubmit} style={formStyle}>
-      <h3>{initialData ? "Modifica Libro" : "Nuovo Libro"}</h3>
+    <form onSubmit={handleSubmit} className="book-form">
+      <h3 className="form-title">
+        {initialData ? "📝 Modifica Libro" : "✨ Aggiungi Nuovo Libro"}
+      </h3>
 
-      <input
-        placeholder="Titolo"
-        value={titolo}
-        onChange={(e) => setTitolo(e.target.value)}
-        required
-      />
-      <input
-        placeholder="Autore"
-        value={autore}
-        onChange={(e) => setAutore(e.target.value)}
-        required
-      />
-      <input
-        type="number"
-        placeholder="Anno"
-        value={anno}
-        onChange={(e) => setAnno(Number(e.target.value))}
-        required
-      />
-      <input
-        placeholder="Genere"
-        value={genere}
-        onChange={(e) => setGenere(e.target.value)}
-        required
-      />
-      <textarea
-        placeholder="Descrizione"
-        value={descrizione}
-        onChange={(e) => setDescrizione(e.target.value)}
-        required
-      />
+      {formError && <p className="error-message">{formError}</p>}
 
-      <div style={{ marginTop: "10px" }}>
-        <button type="submit">{initialData ? "Aggiorna" : "Salva"}</button>
-        <button type="button" onClick={onCancel}>
+      <div className="form-group">
+        <label htmlFor="titolo">Titolo</label>
+        <input
+          id="titolo"
+          placeholder="Es: Il Signore degli Anelli"
+          value={titolo}
+          onChange={(e) => setTitolo(e.target.value)}
+          required
+        />
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="autore">Autore</label>
+        <input
+          id="autore"
+          placeholder="Es: J.R.R. Tolkien"
+          value={autore}
+          onChange={(e) => setAutore(e.target.value)}
+          required
+        />
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="anno">Anno di pubblicazione</label>
+        <input
+          id="anno"
+          type="number"
+          placeholder="Es: 1954"
+          value={anno}
+          onChange={(e) => setAnno(Number(e.target.value))}
+          required
+        />
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="genere">Genere</label>
+        <input
+          id="genere"
+          placeholder="Es: Fantasy, Romanzo..."
+          value={genere}
+          onChange={(e) => setGenere(e.target.value)}
+          required
+        />
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="descrizione">Descrizione / Trama</label>
+        <textarea
+          id="descrizione"
+          placeholder="Inserisci una breve descrizione..."
+          value={descrizione}
+          onChange={(e) => setDescrizione(e.target.value)}
+          required
+        />
+      </div>
+
+      <div className="form-actions">
+        <button type="submit" className="btn-save">
+          {initialData ? "Aggiorna Libro" : "Salva Libro"}
+        </button>
+        <button type="button" onClick={onCancel} className="btn-cancel">
           Annulla
         </button>
       </div>
     </form>
   );
-};
-
-const formStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "10px",
-  padding: "20px",
-  border: "1px solid #ddd",
-  borderRadius: "8px",
 };
 
 export default BookForm;

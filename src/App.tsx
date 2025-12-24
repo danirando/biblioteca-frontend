@@ -10,6 +10,7 @@ function App() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [paginationLinks, setPaginationLinks] = useState<any>(null);
 
   // FILTRO: Calcolato in modo sicuro
   const filteredBooks = Array.isArray(books)
@@ -22,33 +23,48 @@ function App() {
     : [];
 
   // FETCH INIZIALE
-  useEffect(() => {
-    const fetchBooks = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await fetch("http://localhost:8000/api/books");
-        if (!response.ok) throw new Error("Errore nel caricamento");
+  // 1. DEFINISCI la funzione qui (fuori dallo useEffect)
+  const fetchBooks = async (url = "http://localhost:8000/api/books") => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Errore nel caricamento");
 
-        const data = await response.json();
-        // Gestione risposta Laravel/API: se i dati sono dentro data.data o solo data
-        const finalData = Array.isArray(data) ? data : data.data || [];
-        setBooks(finalData);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Errore sconosciuto");
-      } finally {
-        setIsLoading(false);
+      const responseData = await response.json();
+
+      // Gestione flessibile della risposta (paginata o array semplice)
+      const booksArray = Array.isArray(responseData)
+        ? responseData
+        : responseData.data;
+      setBooks(booksArray || []);
+
+      // Salva i dati di paginazione se presenti
+      if (responseData.links || responseData.current_page) {
+        setPaginationLinks(responseData);
       }
-    };
+    } catch (err) {
+      if (err instanceof Error) setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 2. RICHIAMALA nello useEffect al caricamento iniziale
+  useEffect(() => {
     fetchBooks();
   }, []);
 
-  // SALVATAGGIO (Crea o Aggiorna)
   const handleSaveBook = async (
     bookData: Omit<Book, "id"> & { id?: number }
   ) => {
     setIsLoading(true);
+    setError(null);
+
     const isEditing = !!bookData.id;
+
+    // Assicurati che l'URL sia corretto. Se usi .env, verifica che VITE_API_BASE_URL
+    // finisca con /api/books o aggiungilo qui:
     const url = isEditing
       ? `${import.meta.env.VITE_API_BASE_URL}/${bookData.id}`
       : `${import.meta.env.VITE_API_BASE_URL}`;
@@ -56,34 +72,68 @@ function App() {
     try {
       const response = await fetch(url, {
         method: isEditing ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify(bookData),
       });
 
-      if (!response.ok) throw new Error("Errore nel salvataggio");
-
-      const savedBook: Book = await response.json();
-
-      if (isEditing) {
-        setBooks(books.map((b) => (b.id === savedBook.id ? savedBook : b)));
-      } else {
-        setBooks([...books, savedBook]);
+      if (!response.ok) {
+        const errorData = await response.json();
+        // Se Laravel fallisce la validazione, vedrai i dettagli qui
+        console.error("Dettagli errore validazione:", errorData.errors);
+        throw new Error(errorData.message || "Errore nel salvataggio");
       }
 
-      // Chiudi tutto dopo il salvataggio
+      const responseData = await response.json();
+      console.log("Risposta dal server:", responseData);
+
+      // ESECUZIONE AGGIORNAMENTO:
+      // Poiché il tuo controller restituisce { data: { ... } },
+      // ricaricare tutto dal server è la scelta più sicura per il DB e la paginazione.
+      await fetchBooks();
+
+      // Chiudi i form
       setEditingBook(null);
       setIsAddingNew(false);
     } catch (err) {
-      // Usiamo 'err' per stampare il motivo del fallimento in console (utile per il debug)
-      console.error("Errore durante il salvataggio:", err);
       setError(
-        "Impossibile salvare il libro. Controlla la connessione o i dati inseriti."
+        err instanceof Error ? err.message : "Errore di connessione al server"
       );
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleDeleteBook = async (id: number) => {
+    if (!window.confirm("Sei sicuro di voler eliminare questo libro?")) return;
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/${id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) throw new Error("Errore durante l'eliminazione");
+
+      setBooks((prevBooks) => prevBooks.filter((b) => b.id !== id));
+    } catch (err: unknown) {
+      // TypeScript tipizza err come unknown
+      // Controllo di sicurezza
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Si è verificato un errore imprevisto");
+      }
+      console.error("Dettagli errore:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   return (
     <div
       className="app-container"
@@ -119,7 +169,8 @@ function App() {
       {/* FORM: Si mostra se stiamo aggiungendo O modificando */}
       {(isAddingNew || editingBook) && (
         <BookForm
-          key={editingBook?.id || "new-form"}
+          // Questa è la chiave magica: se cambia l'ID, il form si resetta da solo
+          key={editingBook?.id || "new-book"}
           initialData={editingBook}
           onSave={handleSaveBook}
           onCancel={() => {
@@ -138,7 +189,34 @@ function App() {
             setEditingBook(book);
             setIsAddingNew(false);
           }}
+          onDelete={handleDeleteBook} // <--- Passa la funzione qui
         />
+      )}
+
+      {!isLoading && paginationLinks && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: "20px",
+            marginTop: "20px",
+          }}>
+          <button
+            disabled={!paginationLinks.prev_page_url}
+            onClick={() => fetchBooks(paginationLinks.prev_page_url)}>
+            ⬅️ Precedente
+          </button>
+
+          <span>
+            Pagina {paginationLinks.current_page} di {paginationLinks.last_page}
+          </span>
+
+          <button
+            disabled={!paginationLinks.next_page_url}
+            onClick={() => fetchBooks(paginationLinks.next_page_url)}>
+            Successiva ➡️
+          </button>
+        </div>
       )}
     </div>
   );
