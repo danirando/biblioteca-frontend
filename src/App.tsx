@@ -18,12 +18,14 @@ function App() {
 
   const fetchBooks = async (url = "http://localhost:8000/api/books") => {
     setIsLoading(true);
+    setError(null); // Reset dell'errore ad ogni tentativo
     try {
       const fetchUrl = new URL(url);
       if (searchTerm) fetchUrl.searchParams.append("search", searchTerm);
 
       const response = await fetch(fetchUrl.toString());
-      if (!response.ok) throw new Error("Errore caricamento");
+      if (!response.ok)
+        throw new Error("Errore durante il caricamento dei dati");
 
       const responseData = await response.json();
       const booksArray = Array.isArray(responseData)
@@ -42,7 +44,10 @@ function App() {
         });
       }
     } catch (err) {
-      setError("Errore di connessione.");
+      // TypeScript safe check
+      const errorMessage =
+        err instanceof Error ? err.message : "Errore di connessione.";
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -57,10 +62,11 @@ function App() {
     bookData: Omit<Book, "id"> & { id?: number }
   ) => {
     setIsLoading(true);
+    setError(null); // Reset dell'errore precedente
+
     const isEditing = !!bookData.id;
-    const url = isEditing
-      ? `${import.meta.env.VITE_API_BASE_URL}/${bookData.id}`
-      : `${import.meta.env.VITE_API_BASE_URL}`;
+    const baseUrl = import.meta.env.VITE_API_BASE_URL;
+    const url = isEditing ? `${baseUrl}/${bookData.id}` : baseUrl;
 
     try {
       const response = await fetch(url, {
@@ -69,16 +75,20 @@ function App() {
         body: JSON.stringify(bookData),
       });
 
-      if (!response.ok) throw new Error("Salvataggio fallito");
+      if (!response.ok)
+        throw new Error(
+          "Salvataggio fallito: il server ha risposto con un errore."
+        );
 
-      // Dopo il salvataggio, ricarichiamo sempre dalla PAGINA 1
-      // così il nuovo libro apparirà in cima.
-      await fetchBooks(`${import.meta.env.VITE_API_BASE_URL}`);
+      await fetchBooks(baseUrl);
 
       setEditingBook(null);
       setIsAddingNew(false);
     } catch (err) {
-      setError("Errore durante il salvataggio.");
+      // Gestione sicura per TypeScript
+      const message =
+        err instanceof Error ? err.message : "Errore durante il salvataggio.";
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -86,19 +96,55 @@ function App() {
 
   const handleDeleteBook = async (id: number) => {
     if (!window.confirm("Eliminare definitivamente?")) return;
+
+    setError(null);
     try {
-      await fetch(`${import.meta.env.VITE_API_BASE_URL}/${id}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/${id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) throw new Error("Impossibile eliminare il libro.");
+
       fetchBooks();
     } catch (err) {
-      setError("Errore eliminazione.");
+      const message =
+        err instanceof Error ? err.message : "Errore eliminazione.";
+      setError(message);
     }
   };
 
   return (
     <div style={{ padding: "20px", maxWidth: "800px", margin: "0 auto" }}>
       <h1>📚 Gestione Libreria</h1>
+
+      {error && (
+        <div
+          style={{
+            padding: "10px",
+            marginBottom: "20px",
+            backgroundColor: "#ffe3e3",
+            color: "#d12b2b",
+            border: "1px solid #d12b2b",
+            borderRadius: "4px",
+            display: "flex",
+            justifyContent: "space-between",
+          }}>
+          <span>⚠️ {error}</span>
+          <button
+            onClick={() => setError(null)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontWeight: "bold",
+            }}>
+            X
+          </button>
+        </div>
+      )}
 
       {selectedBook ? (
         <BookCard book={selectedBook} onBack={() => setSelectedBook(null)} />
