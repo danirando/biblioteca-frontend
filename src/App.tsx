@@ -3,6 +3,7 @@ import BookList from "./components/BookList";
 import BookForm from "./components/BookForm";
 import BookCard from "./components/BookCard";
 import type { Book, PaginationData } from "./types";
+import "./index.css"; // <--- Importa qui il CSS
 
 function App() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -117,30 +118,13 @@ function App() {
   };
 
   return (
-    <div style={{ padding: "20px", maxWidth: "800px", margin: "0 auto" }}>
+    <div className="app-container">
       <h1>📚 Gestione Libreria</h1>
 
       {error && (
-        <div
-          style={{
-            padding: "10px",
-            marginBottom: "20px",
-            backgroundColor: "#ffe3e3",
-            color: "#d12b2b",
-            border: "1px solid #d12b2b",
-            borderRadius: "4px",
-            display: "flex",
-            justifyContent: "space-between",
-          }}>
+        <div className="error-banner">
           <span>⚠️ {error}</span>
-          <button
-            onClick={() => setError(null)}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontWeight: "bold",
-            }}>
+          <button onClick={() => setError(null)} className="error-close-btn">
             X
           </button>
         </div>
@@ -150,29 +134,15 @@ function App() {
         <BookCard book={selectedBook} onBack={() => setSelectedBook(null)} />
       ) : (
         <>
-          <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+          <div className="search-actions">
             <input
               type="text"
+              className="search-input"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Cerca titolo o autore..."
-              style={{
-                flex: 1,
-                padding: "10px",
-                borderRadius: "4px",
-                border: "1px solid #ccc",
-              }}
             />
-            <button
-              onClick={() => setIsAddingNew(true)}
-              style={{
-                padding: "10px",
-                backgroundColor: "#28a745",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-              }}>
+            <button className="btn-add" onClick={() => setIsAddingNew(true)}>
               + Nuovo Libro
             </button>
           </div>
@@ -201,15 +171,9 @@ function App() {
           )}
 
           {!isLoading && paginationLinks && (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: "15px",
-                marginTop: "20px",
-              }}>
+            <div className="pagination-container">
               <button
+                className="pagination-btn"
                 disabled={!paginationLinks.prev_page_url}
                 onClick={() => fetchBooks(paginationLinks.prev_page_url!)}>
                 ⬅️
@@ -218,6 +182,7 @@ function App() {
                 {paginationLinks.current_page} / {paginationLinks.last_page}
               </span>
               <button
+                className="pagination-btn"
                 disabled={!paginationLinks.next_page_url}
                 onClick={() => fetchBooks(paginationLinks.next_page_url!)}>
                 ➡️
