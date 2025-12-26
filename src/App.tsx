@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import BookList from "./components/BookList";
 import BookForm from "./components/BookForm";
 import BookCard from "./components/BookCard";
@@ -17,56 +17,74 @@ function App() {
     null
   );
 
-  const fetchBooks = async (url = "http://localhost:8000/api/books") => {
-    setIsLoading(true);
-    setError(null); // Reset dell'errore ad ogni tentativo
-    try {
-      const fetchUrl = new URL(url);
-      if (searchTerm) fetchUrl.searchParams.append("search", searchTerm);
+  const fetchBooks = useCallback(
+    async (url = "http://localhost:8000/api/books") => {
+      setIsLoading(true);
+      setError(null);
 
-      const response = await fetch(fetchUrl.toString());
-      if (!response.ok)
-        throw new Error("Errore durante il caricamento dei dati");
+      try {
+        const fetchUrl = new URL(url);
 
-      const responseData = await response.json();
-      const booksArray = Array.isArray(responseData)
-        ? responseData
-        : responseData.data;
+        // Aggiungiamo il search param solo se non è già presente nell'URL (utile per la paginazione)
+        if (searchTerm && !fetchUrl.searchParams.has("search")) {
+          fetchUrl.searchParams.append("search", searchTerm);
+        }
 
-      setBooks(booksArray || []);
-      if (responseData.current_page) {
-        setPaginationLinks({
-          current_page: responseData.current_page,
-          last_page: responseData.last_page,
-          prev_page_url: responseData.prev_page_url,
-          next_page_url: responseData.next_page_url,
-          total: responseData.total,
-          links: responseData.links,
-        });
+        const response = await fetch(fetchUrl.toString());
+
+        if (!response.ok) {
+          throw new Error(
+            `Errore: ${response.status} - Impossibile caricare i libri`
+          );
+        }
+
+        const responseData = await response.json();
+
+        // Gestione flessibile della struttura dati (array semplice o paginato)
+        const booksArray = Array.isArray(responseData)
+          ? responseData
+          : responseData.data;
+        setBooks(booksArray || []);
+
+        // Aggiornamento link paginazione
+        if (responseData.current_page) {
+          setPaginationLinks({
+            current_page: responseData.current_page,
+            last_page: responseData.last_page,
+            prev_page_url: responseData.prev_page_url,
+            next_page_url: responseData.next_page_url,
+            total: responseData.total,
+            links: responseData.links,
+          });
+        }
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : "Errore di connessione al server.";
+        setError(errorMessage);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      // TypeScript safe check
-      const errorMessage =
-        err instanceof Error ? err.message : "Errore di connessione.";
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    [searchTerm]
+  ); // La funzione viene ricreata solo se il termine di ricerca cambia
 
   useEffect(() => {
-    const delayDebounceFn = setTimeout(() => fetchBooks(), 500);
+    const delayDebounceFn = setTimeout(() => {
+      fetchBooks();
+    }, 500);
+
     return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm]);
+  }, [fetchBooks]); // Ora fetchBooks è una dipendenza stabile grazie a useCallback
 
   const handleSaveBook = async (
     bookData: Omit<Book, "id"> & { id?: number }
   ) => {
     setIsLoading(true);
-    setError(null); // Reset dell'errore precedente
-
+    setError(null);
     const isEditing = !!bookData.id;
-    const baseUrl = import.meta.env.VITE_API_BASE_URL;
+    const baseUrl = "http://localhost:8000/api/books"; // Assicurati che coincida con la tua API
     const url = isEditing ? `${baseUrl}/${bookData.id}` : baseUrl;
 
     try {
@@ -76,20 +94,16 @@ function App() {
         body: JSON.stringify(bookData),
       });
 
-      if (!response.ok)
-        throw new Error(
-          "Salvataggio fallito: il server ha risposto con un errore."
-        );
+      if (!response.ok) throw new Error("Salvataggio fallito.");
 
-      await fetchBooks(baseUrl);
-
+      // Reset degli stati del form
       setEditingBook(null);
       setIsAddingNew(false);
+
+      // Ricarichiamo la lista completa
+      await fetchBooks(baseUrl);
     } catch (err) {
-      // Gestione sicura per TypeScript
-      const message =
-        err instanceof Error ? err.message : "Errore durante il salvataggio.";
-      setError(message);
+      setError(err instanceof Error ? err.message : "Errore salvataggio");
     } finally {
       setIsLoading(false);
     }
@@ -97,26 +111,18 @@ function App() {
 
   const handleDeleteBook = async (id: number) => {
     if (!window.confirm("Eliminare definitivamente?")) return;
-
     setError(null);
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/${id}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const response = await fetch(`http://localhost:8000/api/books/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Eliminazione fallita.");
 
-      if (!response.ok) throw new Error("Impossibile eliminare il libro.");
-
-      fetchBooks();
+      fetchBooks(); // Ricarica la pagina corrente
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Errore eliminazione.";
-      setError(message);
+      setError(err instanceof Error ? err.message : "Errore eliminazione");
     }
   };
-
   return (
     <div className="app-container">
       <h1>📚 Gestione Libreria</h1>
