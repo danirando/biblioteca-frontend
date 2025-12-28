@@ -41,20 +41,18 @@ function App() {
         const responseData = await response.json();
 
         // Gestione flessibile della struttura dati (array semplice o paginato)
-        const booksArray = Array.isArray(responseData)
-          ? responseData
-          : responseData.data;
+        const booksArray = responseData.data;
         setBooks(booksArray || []);
 
         // Aggiornamento link paginazione
-        if (responseData.current_page) {
+        if (responseData.meta) {
           setPaginationLinks({
-            current_page: responseData.current_page,
-            last_page: responseData.last_page,
-            prev_page_url: responseData.prev_page_url,
-            next_page_url: responseData.next_page_url,
-            total: responseData.total,
-            links: responseData.links,
+            current_page: responseData.meta.current_page,
+            last_page: responseData.meta.last_page,
+            prev_page_url: responseData.links.prev, // Cambiato da prev_page_url
+            next_page_url: responseData.links.next, // Cambiato da next_page_url
+            total: responseData.meta.total,
+            links: responseData.meta.links,
           });
         }
       } catch (err) {
